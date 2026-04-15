@@ -45,6 +45,7 @@ The system maps independent alignments to individual CUDA threads using a memory
 
 ## 📊 Experimental Data
 The following table summarizes the runtime performance (in seconds) for $N$ alignments of length $L=128$[cite: 120, 138]:
+If you want to test the data, we used the Homo sapiens chromosome 1, GRCh38: [https://www.ncbi.nlm.nih.gov/nuccore/CM000663.2/]
 
 <table align="center">
   <thead>
