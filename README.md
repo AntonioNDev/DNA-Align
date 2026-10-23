@@ -1,6 +1,6 @@
 <div align="center">
   <h1>CUDA-Driven Parallel Detection of Cancer-Associated Mutations in the Human Genome</h1>
-  <p><strong>Antonio Nikoloski, 226059</strong></p>
+  <p><strong>Antonio Nikoloski</strong></p>
   <p><em>Skopje, North Macedonia</em></p>
 
   <img src="https://img.shields.io/badge/Language-Python%20%2F%20CUDA%20C%2B%2B-blue" alt="Language">
