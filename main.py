@@ -15,41 +15,53 @@ GAP = -1
 ENCODE = {'A': 0, 'C': 1, 'G': 2, 'T': 3, 'N': -1}
 
 TRANSITIONS = {
-    0: [2],  # A → G
-    2: [0],  # G → A
-    1: [3],  # C → T
-    3: [1],  # T → C
+   0: [2],  # A → G
+   2: [0],  # G → A
+   1: [3],  # C → T
+   3: [1],  # T → C
 }
 
 ALL_BASES = [0, 1, 2, 3]
 
 class DataProcessing:
    """
-   Handles genome loading, encoding, and cancer-like mutation generation.
+      Loads and encodes genome data and generates reproducible,
+      transition-biased synthetic mutation pairs.
    """
 
-   def __init__(self, seq_path, window_length, num_pairs, mutation_rates, transition_bias=0.7):
+   def __init__(self, seq_path, window_length, num_pairs, mutation_rates, transition_bias=0.7, random_seed=42):
       """
       Parameters:
-      seq_path (str): Path to FASTA genome file
-      window_length (int): Length of extracted genomic windows
-      num_pairs (int): Number of reference/query pairs
-      mutation_rates (list): Mutation rates for experiments
-      transition_bias (float): Probability of transition mutation
+         seq_path (str): Path to FASTA genome file
+         window_length (int): Length of extracted genomic windows
+         num_pairs (int): Number of reference/query pairs
+         mutation_rates (list): Mutation rates for experiments
+         transition_bias (float): Probability of transition mutation
       """
+
+      # Validate the inputs
+      if not isinstance(window_length, (int, np.integer)) or window_length <= 0:
+         raise ValueError("window_length must be a positive integer.")
+      if not isinstance(num_pairs, (int, np.integer)) or num_pairs < 0:
+         raise ValueError("num_pairs must be a non-negative integer.")
+      if not 0.0 <= transition_bias <= 1.0:
+         raise ValueError("transition_bias must be between 0 and 1.")
+
       self.seq_path = seq_path
-      self.window_length = window_length
-      self.num_pairs = num_pairs
-      self.mutation_rates = mutation_rates
-      self.transition_bias = transition_bias
+      self.window_length = int(window_length)
+      self.num_pairs = int(num_pairs)
+      self.mutation_rates = list(mutation_rates)
+      self.transition_bias = float(transition_bias)
+
+      # Seed generator that makes experiments reproducible.
+      self.rng = np.random.default_rng(random_seed)
    
    def load_fasta_and_encode(self):
       """
-      Loads a FASTA file and encodes DNA bases into integers.
-      Unknown bases (N) are removed.
+         Load FASTA records and return contiguous A/C/G/T segments.
 
-      Returns:
-      np.ndarray: Encoded genome sequence
+         Ambiguous bases split segments. FASTA records are never joined.
+         Returns a list of 1D int8 NumPy arrays.
       """
       base_map = np.full(256, -1, dtype=np.int8)
       base_map[ord('A')] = 0
@@ -57,16 +69,29 @@ class DataProcessing:
       base_map[ord('G')] = 2
       base_map[ord('T')] = 3
 
-      chunks = []
-      for record in SeqIO.parse(self.seq_path, "fasta"):
-         seq = np.frombuffer(str(record.seq).encode(), dtype=np.uint8)
-         encoded = base_map[seq]
-         encoded = encoded[encoded != -1]
-         
-         if len(encoded) > 0:
-            chunks.append(encoded)
+      segments = []
 
-      return np.concatenate(chunks)
+      for record in SeqIO.parse(self.seq_path, "fasta"):
+         sequence = str(record.seq).upper().encode("ascii")
+         encoded = base_map[np.frombuffer(sequence, dtype=np.uint8)]
+
+         valid = encoded >= 0
+         boundaries = np.diff(
+            np.concatenate(([False], valid, [False])).astype(np.int8)
+         )
+         starts = np.flatnonzero(boundaries == 1)
+         ends = np.flatnonzero(boundaries == -1)
+
+         for start, end in zip(starts, ends):
+            if end > start:
+               segments.append(encoded[start:end].copy())
+
+      if not segments:
+         raise ValueError(
+            "No valid A/C/G/T sequence segments were found in the FASTA file."
+         )
+
+      return segments
 
    def mutate_base_cancer(self, base):
       """
@@ -78,45 +103,95 @@ class DataProcessing:
          Returns:
          int: Mutated nucleotide
       """
-      if np.random.rand() < self.transition_bias:
-         return np.random.choice(TRANSITIONS[base])
+      base = int(base)
+      
+      if base not in ALL_BASES:
+         raise ValueError(f"Invalid encoded DNA base: {base}")
 
-      choices = [b for b in ALL_BASES if b != base]
-      return np.random.choice(choices)
+      if self.rng.random() < self.transition_bias:
+         return int(self.rng.choice(TRANSITIONS[base]))
+
+      transversions = [
+         candidate for candidate in ALL_BASES if candidate not in TRANSITIONS[base]
+      ]
+
+      return int(self.rng.choice(transversions))
 
    def generate_cancer_mutated_pairs(self, genome, mutation_rate):
       """
-      Generates reference/query pairs with cancer-like mutations.
+      Generate reference/query pairs from valid contiguous DNA segments.
 
+      Windows are sampled uniformly from all possible valid window
+      positions across all segments.
+      
       Parameters:
       genome (np.ndarray): Encoded genome
       mutation_rate (float): Probability of mutation per base
 
       Returns:
-      (refs, queries): Arrays of shape (N, window_length)
+      (refs, queries): int8 arrays of shape (num_pairs, window_length)
       """
-      refs, queries = [], []
+
+      if not np.isfinite(mutation_rate) or not 0.0 <= mutation_rate <= 1.0:
+        raise ValueError("mutation_rate must be between 0 and 1.")
+
       L = self.window_length
+      segments = []
 
-      while len(refs) < self.num_pairs:
-         start = np.random.randint(0, len(genome) - L)
-         window = genome[start:start + L]
-         mutated = window.copy()
+      for segment in genome:
+         segment = np.asarray(segment)
 
-         mutated_any = False
-         for i in range(L):
-            if np.random.rand() < mutation_rate:
-               mutated[i] = self.mutate_base_cancer(mutated[i])
-               mutated_any = True
+         if segment.ndim != 1:
+               raise ValueError("Each genome segment must be one-dimensional.")
 
-         if not mutated_any:
-            j = np.random.randint(0, L)
-            mutated[j] = self.mutate_base_cancer(mutated[j])
+         if not np.isin(segment, [0, 1, 2, 3]).all():
+               raise ValueError("Segments must contain only encoded A/C/G/T bases.")
 
-         refs.append(window)
-         queries.append(mutated)
+         if len(segment) >= L:
+               segments.append(segment.astype(np.int8, copy=False))
 
-      return np.array(refs, dtype=np.int8), np.array(queries, dtype=np.int8)
+      if self.num_pairs == 0:
+         empty = np.empty((0, L), dtype=np.int8)
+         return empty.copy(), empty.copy()
+
+      if not segments:
+         raise ValueError(
+            f"No valid contiguous DNA segment is at least {L} bases long."
+         )
+
+      # Number of valid window starts per segment.
+      counts = np.array(
+         [len(segment) - L + 1 for segment in segments],
+         dtype=np.int64,
+      )
+      cumulative = np.cumsum(counts)
+      total_windows = int(cumulative[-1])
+
+      # Sample uniformly from every possible valid window position.
+      choices = self.rng.integers(
+         0, total_windows, size=self.num_pairs
+      )
+
+      segment_indices = np.searchsorted(cumulative, choices, side="right")
+      previous_cumulative = np.concatenate(([0], cumulative[:-1]))
+      local_starts = choices - previous_cumulative[segment_indices]
+
+      refs = np.empty((self.num_pairs, L), dtype=np.int8)
+      queries = np.empty_like(refs)
+
+      for i, (segment_idx, start) in enumerate(zip(segment_indices, local_starts)):
+         reference = segments[segment_idx][start : start + L].copy()
+         query = reference.copy()
+
+         mutation_mask = self.rng.random(L) < mutation_rate
+
+         for position in np.flatnonzero(mutation_mask):
+            query[position] = self.mutate_base_cancer(query[position])
+
+         refs[i] = reference
+         queries[i] = query
+
+      return refs, queries
 
 class BenchmarkData(DataProcessing):
    """
@@ -469,7 +544,7 @@ class PlotData:
       plt.show()
 
 if __name__ == "__main__":
-
+   # Real testing data results.
    results_for_plotting = [
       {"N": 500,  "cpu_serial": 20.3907,  "cpu_parallel": 9.3538,  "gpu": 0.0319},
       {"N": 1000, "cpu_serial": 25.9704,  "cpu_parallel": 17.0595, "gpu": 0.0606},
@@ -493,7 +568,7 @@ if __name__ == "__main__":
       {"N": 10000, "cpu_serial": 228.8388, "cpu_parallel": 127.9106, "gpu": 0.2992},
    ]
 
-   # ПОДАТОЦИ ЗА MUTATION IMPACT
+   # DATA FOR MUTATION IMPACT
    rates = [0.00, 0.05, 0.10, 0.15, 0.20, 0.30, 0.50, 0.80, 1.00]
    means = [2.98, 18.76, 36.72, 54.19, 70.71, 101.16, 147.49, 174.37, 180.76]
    stds  = [0.13, 7.15, 9.40, 11.01, 11.89, 12.57, 11.31, 12.55, 16.17]
