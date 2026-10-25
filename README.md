@@ -25,8 +25,6 @@ DNA-Align implements the **Smith–Waterman local alignment** algorithm three wa
  
 Windows are sampled from the **GRCh38 chromosome 1** reference, and a mutated query is generated for each one with a configurable mutation rate and transition bias (A↔G, C↔T). Every reference–query pair is then aligned, and runtimes and alignment scores are compared.
  
-> **Scope:** the mutations are simulated. PiDP is a performance and correctness benchmark, not a variant caller, and it makes no clinical claims.
- 
 ## How it works
  
 ```
