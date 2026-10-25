@@ -1,6 +1,6 @@
 <div align="center">
  
-#🧬 DNA-Align — GPU-Accelerated Smith–Waterman
+🧬 DNA-Align — GPU-Accelerated Smith–Waterman
  
 **Benchmarking serial CPU, multiprocessing CPU and CUDA GPU on real human DNA**
  
