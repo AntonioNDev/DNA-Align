@@ -1212,6 +1212,5 @@ if __name__ == "__main__":
    plt.xticks(Ns)
    plt.legend()
    plt.tight_layout()
-   plt.savefig("benchmark_runtime.pdf", dpi=300)
    plt.show()
 
