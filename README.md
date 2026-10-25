@@ -1,4 +1,4 @@
-# PiDP — GPU-Accelerated DNA Sequence Alignment Benchmark
+# GPU-Accelerated DNA Sequence Alignment Benchmark
 
 **Author:** Antonio Nikoloski  
 **Location:** North Macedonia  
