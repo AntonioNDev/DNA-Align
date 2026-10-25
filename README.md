@@ -75,17 +75,6 @@ The current CUDA kernel uses the following scoring parameters:
 | Mismatching bases | −1 |
 | Gap | −1 |
 
-The dynamic-programming recurrence is:
-
-\[
-H_{i,j}=\max\begin{cases}
-0\\
-H_{i-1,j-1}+s(Q_i,R_j)\\
-H_{i-1,j}-1\\
-H_{i,j-1}-1
-\end{cases}
-\]
-
 Where:
 
 - \(H_{i,j}\) is the alignment score at position \((i,j)\).
@@ -282,19 +271,15 @@ These GPU measurements must not be directly compared with CPU timings from a dif
 
 ### Performance visualization
 
-Save your execution-time chart at `docs/images/benchmark_speed.png`.
+![img1](images/mutation_impact.jpg)
 
-![Placeholder for benchmark execution-time comparison](images/mutation_impact.jpg)
-
-*Figure 1. Placeholder: compare serial CPU, multiprocessing CPU, and CUDA GPU execution time across workload sizes. Use CPU and GPU results collected under the same experimental conditions.*
+*Figure 1: compare serial CPU, multiprocessing CPU, and CUDA GPU execution time across workload sizes. Use CPU and GPU results collected under the same experimental conditions.*
 
 ### Mutation-rate visualization
 
-Save your mutation-rate chart at `docs/images/mutation_rate.png`.
+![img1](images/mutation_impact.jpg)
 
-![Placeholder for mutation-rate validation](images/mutation_impact.jpg)
-
-*Figure 2. Placeholder: compare target and observed mutation rates across multiple configurations. If available, show transition and transversion frequencies separately.*
+*Figure 2: compare target and observed mutation rates across multiple configurations. If available, show transition and transversion frequencies separately.*
 
 ### Speedup calculation
 
